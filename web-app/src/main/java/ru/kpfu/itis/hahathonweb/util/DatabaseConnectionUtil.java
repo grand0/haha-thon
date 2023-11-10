@@ -7,8 +7,8 @@ import java.sql.SQLException;
 public class DatabaseConnectionUtil {
     private static final String DRIVER_CLASS = "org.postgresql.Driver";
     private static final String DB_URL = "jdbc:postgresql://localhost:5432/hahathon";
-    private static final String DB_USER = "postgres";
-    private static final String DB_PASSWORD = "reg123321reg";
+    private static final String DB_USER = System.getenv("PostgresUser");
+    private static final String DB_PASSWORD = System.getenv("PostgresPassword");
 
     private static Connection connection;
 
