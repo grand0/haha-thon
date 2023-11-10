@@ -15,6 +15,5 @@ The data generator, designed to send sensor measurements every 10 seconds, for e
 #### Web App
 Our team wrote code in several programming languages such asJava and JavaScript. The back-end part consists of generating random data in a certain interval and sending this data to the client part. The client part is a one-page website with several minimalistic cards with all the necessary information - what kind of sensor it is, what state it is in and the last time it updated its data.
 ### Screencast: 
-https://github.com/grand0/haha-thon/assets/113761346/20661001-b7a7-40f6-acef-5448180d58ad
-
+https://github.com/grand0/haha-thon/assets/53438383/62a45c7e-aaac-42dc-a940-f519d4d8288f
 
