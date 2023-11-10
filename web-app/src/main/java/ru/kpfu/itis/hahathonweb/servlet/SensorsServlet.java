@@ -22,23 +22,32 @@ import java.util.List;
 public class SensorsServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        SensorsService sensorsService = new SensorsService(
-                new MeasurementIntDataDao(),
-                new MeasurementNamesDao(),
-                new SensorDao(),
-                new TypeDao()
-        );
+        String action = req.getParameter("action");
+        if (action == null || action.isEmpty()) {
+            SensorsService sensorsService = new SensorsService(
+                    new MeasurementIntDataDao(),
+                    new MeasurementNamesDao(),
+                    new SensorDao(),
+                    new TypeDao()
+            );
 
-        List<SensorDto> sensors = sensorsService.getAll();
+            List<SensorDto> sensors = sensorsService.getAll();
 
-        Gson gson = new Gson();
-        String jsonResponse = gson.toJson(sensors);
+            Gson gson = new Gson();
+            String jsonResponse = gson.toJson(sensors);
 
-        resp.setContentType("application/json");
-        resp.setCharacterEncoding("UTF-8");
+            resp.setContentType("application/json");
+            resp.setCharacterEncoding("UTF-8");
 
-        PrintWriter out = resp.getWriter();
-        out.print(jsonResponse);
-        out.close();
+            PrintWriter out = resp.getWriter();
+            out.print(jsonResponse);
+            out.close();
+        } else if (action.equals("toggle")) {
+            try {
+                int sensorId = Integer.parseInt(req.getParameter("sensorId"));
+                SensorDao sensorDao = new SensorDao();
+                sensorDao.toggle(sensorId);
+            } catch (NumberFormatException | NullPointerException ignored) { }
+        }
     }
 }
