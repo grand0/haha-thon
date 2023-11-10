@@ -1,0 +1,48 @@
+* {
+    font-family: 'Nunito', sans-serif;
+}
+
+body {
+    padding: 16px;
+}
+
+#last-updated {
+    font-style: italic;
+}
+
+.card {
+    margin: 4px;
+    position: relative;
+    overflow: hidden;
+    transition-duration: 500ms;
+    z-index: 0;
+}
+
+.card:hover {
+    transform: scale(1.01);
+    z-index: 999;
+}
+
+.card > .material-symbols-outlined {
+    position: absolute;
+    font-size: 116px;
+    right: 10px;
+    opacity: 0.1;
+    user-select: none;
+}
+
+.card-name {
+    display: inline-flex;
+    gap: 0.375rem;
+    align-items: baseline;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+}
+
+.card-value {
+    font-size: 28px;
+}
+
+.card-secondary-text {
+    font-style: italic;
+}
