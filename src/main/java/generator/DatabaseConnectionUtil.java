@@ -1,4 +1,4 @@
-package generator;
+package ru.kpfu.itis.arifulina.db.util;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -7,8 +7,8 @@ import java.sql.SQLException;
 public class DatabaseConnectionUtil {
     private static Connection connection;
     private static final String URL = "jdbc:postgresql://localhost:5432/hahathon";
-    private static final String USER = "postgres";
-    private static final String PASSWORD = "admin";
+    private static final String USER = "your user";
+    private static final String PASSWORD = "your password";
 
     public static Connection getConnection()  {
         if (connection == null) {
