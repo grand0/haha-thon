@@ -7,6 +7,7 @@ import java.sql.*;
 
 public class DataGenerator {
     static Connection connection = DatabaseConnectionUtil.getConnection();
+    public static final String MEASUREMENT_INT_DATA_KEY = "measurement_int_data";
     private final static String MOVING_SENSOR_NAME = "Moving Sensor";
     private final static String LEAKAGE_SENSOR_NAME = "Water Leakage Sensor";
     private final static String WINDOW_BLIND_SENSOR_NAME = "Window Blind Sensor";
@@ -94,7 +95,7 @@ public class DataGenerator {
                     previousValue = Math.random() < probability ? previousValue + (int) (Math.random() * changeSpeed): previousValue - (int) (Math.random() * changeSpeed);
                     if (previousValue < min) previousValue = min;
                     if (previousValue > max) previousValue = max;
-                    insertData(sensorId, nameId, previousValue, new Timestamp(System.currentTimeMillis()));
+                    insertData(sensorId, nameId, previousValue, new Timestamp(System.currentTimeMillis()), MEASUREMENT_INT_DATA_KEY);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -109,7 +110,7 @@ public class DataGenerator {
             while (true) {
                 try {
                     Thread.sleep(DELTA_TIME_MILLIS);
-                    insertData(sensorId, nameId, Math.random() < probability ? 1 : 0, new Timestamp(System.currentTimeMillis()));
+                    insertData(sensorId, nameId, Math.random() < probability ? 1 : 0, new Timestamp(System.currentTimeMillis()), MEASUREMENT_INT_DATA_KEY);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -119,14 +120,15 @@ public class DataGenerator {
         thread.start();
     }
 
-    private static void insertData(long sensorId, long nameId, int value, Timestamp timestamp) {
-        String sql = "INSERT INTO measurement_int_data (sensor_id, measurement_name_id, value, time) VALUES (?, ?, ?, ?)";
+    private static void insertData(long sensorId, long nameId, int value, Timestamp timestamp, String table) {
+        String sql = "INSERT INTO ? (sensor_id, measurement_name_id, value, time) VALUES (?, ?, ?, ?)";
 
         try (PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
-            statement.setLong(1, sensorId);
-            statement.setLong(2, nameId);
-            statement.setInt(3, value);
-            statement.setTimestamp(4, timestamp);
+            statement.setString(1, table);
+            statement.setLong(2, sensorId);
+            statement.setLong(3, nameId);
+            statement.setInt(4, value);
+            statement.setTimestamp(5, timestamp);
             statement.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException(e);
