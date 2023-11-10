@@ -42,6 +42,16 @@ public class SensorDao {
         return null;
     }
 
+    public void toggle(long id) {
+        String sql = "UPDATE sensors SET state = NOT state WHERE id = ?;";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, id);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private Sensor fromResultSet(ResultSet set) throws SQLException {
         return new Sensor(
                 set.getLong("id"),
