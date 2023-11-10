@@ -3,8 +3,6 @@ package ru.kpfu.itis.arifulina.db.generator;
 import ru.kpfu.itis.arifulina.db.util.DatabaseConnectionUtil;
 
 import java.sql.*;
-import java.util.HashMap;
-import java.util.Map;
 
 
 public class DataGenerator {
@@ -23,8 +21,6 @@ public class DataGenerator {
     public static final int START_VALUE_COLOR = 8388608;
     public static final int COLOR_CHANGING_SPEED = 16 * 16 * 16;
     public static final int INTENSITY_CHANGING_SPEED = 10;
-
-    public static Map<Long, Boolean> states = new HashMap<>();
 
     private static void initSensors() {
         try {
@@ -62,8 +58,6 @@ public class DataGenerator {
             ResultSet resultSet = statement.executeQuery("SELECT * FROM sensors;");
             while (resultSet.next()) {
                 long id = resultSet.getLong("id");
-                boolean isActive = resultSet.getBoolean("state");
-                states.put(id, isActive);
                 switch (getSensorType(resultSet.getLong("type_id"))) {
                     case MOVING_SENSOR_NAME -> startBooleanSensorDetection(id, DETECTED_MEASURE_NAME, 0.9);
                     case LEAKAGE_SENSOR_NAME, DOOR_WINDOW_SENSOR_NAME, SMOKE_SENSOR_NAME ->
@@ -80,28 +74,9 @@ public class DataGenerator {
         }
     }
 
-    public static void updatingStatesStart(){
-        Thread thread = new Thread(() -> {
-            while (true) {
-                try {
-                    Thread.sleep(DELTA_TIME_MILLIS);
-                    Statement statement = connection.createStatement();
-                    ResultSet resultSet = statement.executeQuery("SELECT id, state FROM sensors;");
-                    while (resultSet.next()){
-                        states.put(resultSet.getLong("id"), resultSet.getBoolean("state"));
-                    }
-                } catch (InterruptedException | SQLException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
-        thread.start();
-    }
-
     public static void main(String[] args) {
         //initSensors(); if you want to init new ones
         getDataFromSensors();
-        updatingStatesStart();
     }
 
     private static void startIntSensorDetection(long sensorId, String measurementName, int changeSpeed, int startValue, double probability) {
@@ -114,7 +89,7 @@ public class DataGenerator {
                 int previousValue = startValue;
                 try {
                     Thread.sleep(DELTA_TIME_MILLIS);
-                    if (states.get(sensorId)) {
+                    if (isActiveSensor(sensorId)) {
                         previousValue = Math.random() < probability ? previousValue + (int) (Math.random() * changeSpeed) : previousValue - (int) (Math.random() * changeSpeed);
                         if (previousValue < min) previousValue = min;
                         if (previousValue > max) previousValue = max;
@@ -135,7 +110,7 @@ public class DataGenerator {
             while (true) {
                 try {
                     Thread.sleep(DELTA_TIME_MILLIS);
-                    if (states.get(sensorId)) {
+                    if (isActiveSensor(sensorId)) {
                         insertIntData(sensorId, nameId, Math.random() < probability ? 1 : 0, new Timestamp(System.currentTimeMillis()));
                     }
                 } catch (InterruptedException e) {
@@ -221,6 +196,22 @@ public class DataGenerator {
             id = resultSet.getInt("id");
         }
         return id;
+    }
+
+    private static boolean isActiveSensor(long sensorId){
+        try {
+            String sql = "SELECT state FROM sensors WHERE id=?";
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.setLong(1, sensorId);
+            ResultSet resultSet = preparedStatement.executeQuery();
+            boolean isActive = false;
+            if (resultSet.next()){
+                isActive = resultSet.getBoolean("state");
+            }
+            return isActive;
+        } catch (SQLException e){
+            throw new RuntimeException();
+        }
     }
 }
 
