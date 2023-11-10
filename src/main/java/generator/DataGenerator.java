@@ -3,11 +3,12 @@ package ru.kpfu.itis.arifulina.db.generator;
 import ru.kpfu.itis.arifulina.db.util.DatabaseConnectionUtil;
 
 import java.sql.*;
+import java.util.HashMap;
+import java.util.Map;
 
 
 public class DataGenerator {
     static Connection connection = DatabaseConnectionUtil.getConnection();
-    public static final String MEASUREMENT_INT_DATA_KEY = "measurement_int_data";
     private final static String MOVING_SENSOR_NAME = "Moving Sensor";
     private final static String LEAKAGE_SENSOR_NAME = "Water Leakage Sensor";
     private final static String WINDOW_BLIND_SENSOR_NAME = "Window Blind Sensor";
@@ -20,10 +21,12 @@ public class DataGenerator {
     public static final int DELTA_TIME_MILLIS = 10 * 1000;
     public static final int START_VALUE_INTENSITY = 50;
     public static final int START_VALUE_COLOR = 8388608;
-    public static final int COLOR_CHANGING_SPEED = 16*16*16;
+    public static final int COLOR_CHANGING_SPEED = 16 * 16 * 16;
     public static final int INTENSITY_CHANGING_SPEED = 10;
 
-    private static void initSensors(){
+    public static Map<Long, Boolean> states = new HashMap<>();
+
+    private static void initSensors() {
         try {
             String sql = "INSERT INTO sensors(type_id, state, date) values (?,?,?)";
             PreparedStatement preparedStatement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
@@ -48,38 +51,57 @@ public class DataGenerator {
             preparedStatement.setLong(1, getSensorTypeId(DOOR_WINDOW_SENSOR_NAME));
             preparedStatement.executeUpdate();
 
-        } catch (SQLException e){
+        } catch (SQLException e) {
             throw new RuntimeException();
         }
     }
 
-    private static void getDataFromSensors(){
+    private static void getDataFromSensors() {
         try {
             Statement statement = connection.createStatement();
             ResultSet resultSet = statement.executeQuery("SELECT * FROM sensors;");
-            while (resultSet.next()){
-                Thread.sleep(1000);
-                if (resultSet.getBoolean("state")){
-                    long id = resultSet.getLong("id");
-                    switch (getSensorType(resultSet.getLong("type_id"))){
-                        case MOVING_SENSOR_NAME -> startBooleanSensorDetection(id, DETECTED_MEASURE_NAME, 0.9);
-                        case LEAKAGE_SENSOR_NAME, DOOR_WINDOW_SENSOR_NAME, SMOKE_SENSOR_NAME -> startBooleanSensorDetection(id, DETECTED_MEASURE_NAME, 0.1);
-                        case WINDOW_BLIND_SENSOR_NAME -> startBooleanSensorDetection(id, DETECTED_MEASURE_NAME, 0.5);
-                        case LIGHTING_SENSOR_NAME -> {
-                            startIntSensorDetection(id, INTENSITY_MEASURE_NAME, INTENSITY_CHANGING_SPEED, START_VALUE_INTENSITY, 0.5);
-                            startIntSensorDetection(id, COLOR_MEASURE_NAME, COLOR_CHANGING_SPEED, START_VALUE_COLOR, 0.5);
-                        }
+            while (resultSet.next()) {
+                long id = resultSet.getLong("id");
+                boolean isActive = resultSet.getBoolean("state");
+                states.put(id, isActive);
+                switch (getSensorType(resultSet.getLong("type_id"))) {
+                    case MOVING_SENSOR_NAME -> startBooleanSensorDetection(id, DETECTED_MEASURE_NAME, 0.9);
+                    case LEAKAGE_SENSOR_NAME, DOOR_WINDOW_SENSOR_NAME, SMOKE_SENSOR_NAME ->
+                            startBooleanSensorDetection(id, DETECTED_MEASURE_NAME, 0.1);
+                    case WINDOW_BLIND_SENSOR_NAME -> startBooleanSensorDetection(id, DETECTED_MEASURE_NAME, 0.5);
+                    case LIGHTING_SENSOR_NAME -> {
+                        startIntSensorDetection(id, INTENSITY_MEASURE_NAME, INTENSITY_CHANGING_SPEED, START_VALUE_INTENSITY, 0.5);
+                        startIntSensorDetection(id, COLOR_MEASURE_NAME, COLOR_CHANGING_SPEED, START_VALUE_COLOR, 0.5);
                     }
                 }
             }
-        } catch (SQLException | InterruptedException e) {
+        } catch (SQLException e) {
             throw new RuntimeException();
         }
+    }
+
+    public static void updatingStatesStart(){
+        Thread thread = new Thread(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(DELTA_TIME_MILLIS);
+                    Statement statement = connection.createStatement();
+                    ResultSet resultSet = statement.executeQuery("SELECT id, state FROM sensors;");
+                    while (resultSet.next()){
+                        states.put(resultSet.getLong("id"), resultSet.getBoolean("state"));
+                    }
+                } catch (InterruptedException | SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+        thread.start();
     }
 
     public static void main(String[] args) {
         //initSensors(); if you want to init new ones
         getDataFromSensors();
+        updatingStatesStart();
     }
 
     private static void startIntSensorDetection(long sensorId, String measurementName, int changeSpeed, int startValue, double probability) {
@@ -92,10 +114,12 @@ public class DataGenerator {
                 int previousValue = startValue;
                 try {
                     Thread.sleep(DELTA_TIME_MILLIS);
-                    previousValue = Math.random() < probability ? previousValue + (int) (Math.random() * changeSpeed): previousValue - (int) (Math.random() * changeSpeed);
-                    if (previousValue < min) previousValue = min;
-                    if (previousValue > max) previousValue = max;
-                    insertData(sensorId, nameId, previousValue, new Timestamp(System.currentTimeMillis()), MEASUREMENT_INT_DATA_KEY);
+                    if (states.get(sensorId)) {
+                        previousValue = Math.random() < probability ? previousValue + (int) (Math.random() * changeSpeed) : previousValue - (int) (Math.random() * changeSpeed);
+                        if (previousValue < min) previousValue = min;
+                        if (previousValue > max) previousValue = max;
+                        insertIntData(sensorId, nameId, previousValue, new Timestamp(System.currentTimeMillis()));
+                    }
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -104,13 +128,16 @@ public class DataGenerator {
 
         thread.start();
     }
+
     private static void startBooleanSensorDetection(long sensorId, String measurementName, double probability) {
         long nameId = getMeasurementNameId(measurementName);
         Thread thread = new Thread(() -> {
             while (true) {
                 try {
                     Thread.sleep(DELTA_TIME_MILLIS);
-                    insertData(sensorId, nameId, Math.random() < probability ? 1 : 0, new Timestamp(System.currentTimeMillis()), MEASUREMENT_INT_DATA_KEY);
+                    if (states.get(sensorId)) {
+                        insertIntData(sensorId, nameId, Math.random() < probability ? 1 : 0, new Timestamp(System.currentTimeMillis()));
+                    }
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -120,29 +147,28 @@ public class DataGenerator {
         thread.start();
     }
 
-    private static void insertData(long sensorId, long nameId, int value, Timestamp timestamp, String table) {
-        String sql = "INSERT INTO ? (sensor_id, measurement_name_id, value, time) VALUES (?, ?, ?, ?)";
+    private static void insertIntData(long sensorId, long nameId, int value, Timestamp timestamp) {
+        String sql = "INSERT INTO measurement_int_data (sensor_id, measurement_name_id, value, time) VALUES (?, ?, ?, ?)";
 
         try (PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
-            statement.setString(1, table);
-            statement.setLong(2, sensorId);
-            statement.setLong(3, nameId);
-            statement.setInt(4, value);
-            statement.setTimestamp(5, timestamp);
+            statement.setLong(1, sensorId);
+            statement.setLong(2, nameId);
+            statement.setInt(3, value);
+            statement.setTimestamp(4, timestamp);
             statement.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private static int[] getMeasurementBounds(long measurementId){
+    private static int[] getMeasurementBounds(long measurementId) {
         try {
             String sql = "SELECT * FROM measurement_int_constraints WHERE measurement_name_id=?;";
             PreparedStatement preparedStatement = connection.prepareStatement(sql);
             preparedStatement.setLong(1, measurementId);
             ResultSet resultSet = preparedStatement.executeQuery();
             int[] bounds = new int[2];
-            if (resultSet.next()){
+            if (resultSet.next()) {
                 bounds[0] = resultSet.getInt("min");
                 bounds[1] = resultSet.getInt("max");
             }
@@ -151,7 +177,8 @@ public class DataGenerator {
             throw new RuntimeException();
         }
     }
-    private static long getMeasurementNameId(String name){
+
+    private static long getMeasurementNameId(String name) {
         try {
             String sql = "SELECT * FROM measurement_names WHERE name=?";
             return getId(name, sql);
@@ -159,7 +186,8 @@ public class DataGenerator {
             throw new RuntimeException();
         }
     }
-    private static long getSensorTypeId(String sensorType){
+
+    private static long getSensorTypeId(String sensorType) {
         try {
             String sql = "SELECT * FROM types WHERE type=?";
             return getId(sensorType, sql);
@@ -167,7 +195,8 @@ public class DataGenerator {
             throw new RuntimeException();
         }
     }
-    private static String getSensorType(long sensorTypeId){
+
+    private static String getSensorType(long sensorTypeId) {
         try {
             String sql = "SELECT * FROM types WHERE id=?";
             PreparedStatement preparedStatement = connection.prepareStatement(sql);
@@ -182,6 +211,7 @@ public class DataGenerator {
             throw new RuntimeException();
         }
     }
+
     private static long getId(String name, String sql) throws SQLException {
         PreparedStatement preparedStatement = connection.prepareStatement(sql);
         preparedStatement.setString(1, name);
